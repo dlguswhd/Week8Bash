@@ -1,48 +1,151 @@
-using UnityEngine;
+Ôªøusing UnityEngine;
 using System.Collections;
 
 public class Enemy : MonoBehaviour
 {
-    public int maxHealth = 100;
-    int currentHealth;
+    [Header("Î™¨Ïä§ÌÑ∞ ÏÑ§Ï†ï (Ïó¨Í∏∞ÏÑú Ïà´Ïûê Î∞îÍæ∏Í∏∞)")]
+    public string monsterName = "Î™¨Ïä§ÌÑ∞Ïù¥Î¶Ñ";
+    public int hp = 100;             
+    public float speed = 2.0f;        
+    public int damage = 10;           
 
-    SpriteRenderer spriteRenderer;
+    [Header("AI Î≤îÏúÑ ÏÑ§Ï†ï")]
+    public float detectRange = 6f;    
+    public float attackRange = 1.2f;  
+
+    Transform target; 
+    Rigidbody2D rb;
+    Animator anim;
+    SpriteRenderer spr;
+    bool isDead = false;
 
     void Start()
     {
-        currentHealth = maxHealth;
-        spriteRenderer = GetComponent<SpriteRenderer>();
+        rb = GetComponent<Rigidbody2D>();
+        anim = GetComponent<Animator>();
+        spr = GetComponent<SpriteRenderer>();
+
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+        if (player != null) target = player.transform;
     }
 
-    // «√∑π¿ÃæÓ∞° ¿Ã «‘ºˆ∏¶ »£√‚«ÿº≠ µ•πÃ¡ˆ∏¶ ¡›¥œ¥Ÿ.
-    public void TakeDamage(int damage)
+    void Update()
     {
-        currentHealth -= damage;
+        if (isDead) return;
+        if (target == null) return;
 
-        // ««∞› »ø∞˙ (ª°∞£ªˆ¿∏∑Œ ±Ù∫˝¿”)
-        StartCoroutine(HitEffect());
+        float dist = Vector2.Distance(transform.position, target.position);
 
-        Debug.Log("∏ÛΩ∫≈Õ √º∑¬: " + currentHealth);
+        if (dist <= detectRange && dist > attackRange)
+        {
+            MoveToPlayer();
+        }
+        else 
+        {
+            StopMoving();
+        }
+    }
 
-        if (currentHealth <= 0)
+    void MoveToPlayer()
+    {
+        float dirX = (target.position.x - transform.position.x) > 0 ? 1 : -1;
+
+        rb.linearVelocity = new Vector2(dirX * speed, rb.linearVelocity.y);
+
+        spr.flipX = (dirX == -1);
+
+        anim.SetBool("IsMoving", true);
+    }
+
+    void StopMoving()
+    {
+        rb.linearVelocity = Vector2.zero;
+        anim.SetBool("IsMoving", false);
+    }
+
+    public void TakeDamage(int dmg)
+    {
+        if (isDead) return;
+
+        hp -= dmg;
+        StartCoroutine(HitColorEffect()); 
+
+        Debug.Log(monsterName + " ÎÇ®ÏùÄ Ï≤¥Î†•: " + hp);
+
+        if (hp <= 0)
         {
             Die();
         }
     }
 
-    IEnumerator HitEffect()
-    {
-        spriteRenderer.color = Color.red; // ª°∞£ªˆ
-        yield return new WaitForSeconds(0.1f);
-        spriteRenderer.color = Color.white; // ø¯∑° ªˆ
-    }
-
     void Die()
     {
-        Debug.Log("∏ÛΩ∫≈Õ ªÁ∏¡!");
-        // ¡◊¥¬ æ÷¥œ∏ﬁ¿Ãº«¿Ã ¿÷¥Ÿ∏È ø©±‚º≠ Ω««‡
+        Debug.Log("‚ë† [Enemy] Die Ìï®Ïàò ÏãúÏûë! ÏúºÏïô Ï£ΩÏùå");
 
-        // ø¿∫Í¡ß∆Æ ªË¡¶
-        Destroy(gameObject);
+        isDead = true;
+
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+
+        if (player == null)
+        {
+            Debug.LogError("‚ë° [Ïò§Î•ò] Player ÌÉúÍ∑∏Î•º Í∞ÄÏßÑ Î¨ºÏ≤¥Í∞Ä ÏóÜÏùå!");
+        }
+        else
+        {
+            Debug.Log("‚ë° [Enemy] Player Ïò§Î∏åÏ†ùÌä∏ Ï∞æÏùå: " + player.name);
+
+            PlayerMovement playerScript = player.GetComponent<PlayerMovement>();
+
+            if (playerScript == null)
+            {
+                Debug.LogError("‚ë¢ [Ïò§Î•ò] Í±îÌïúÌÖå PlayerMovement Ïä§ÌÅ¨Î¶ΩÌä∏Í∞Ä ÏóÜÏùå!");
+            }
+            else
+            {
+                Debug.Log("‚ë¢ [Enemy] Ïä§ÌÅ¨Î¶ΩÌä∏ Ï∞æÏùå -> Ìûê(Heal) Î™ÖÎ†π Î≥¥ÎÉÑ!");
+                playerScript.Heal(10);
+            }
+        }
+
+        if (GameManager.instance != null)
+        {
+            GameManager.instance.OnEnemyDead();
+            GameManager.instance.AddMoney(10);
+        }
+
+        anim.SetTrigger("Die");
+        rb.linearVelocity = Vector2.zero;
+        rb.bodyType = RigidbodyType2D.Kinematic;
+        GetComponent<Collider2D>().enabled = false;
+        Destroy(gameObject, 2f);
+    }
+
+    IEnumerator HitColorEffect()
+    {
+        spr.color = Color.red;
+        yield return new WaitForSeconds(0.1f);
+        spr.color = Color.white;
+    }
+
+    void OnDrawGizmos()
+    {
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(transform.position, detectRange);
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(transform.position, attackRange);
+    }
+
+    private void OnCollisionEnter2D(Collision2D collision)
+    {
+        if (collision.gameObject.CompareTag("Player"))
+        {
+            PlayerMovement player = collision.gameObject.GetComponent<PlayerMovement>();
+
+            if (player != null)
+            {
+                player.TakeDamage(damage);
+            }
+        }
+
     }
 }

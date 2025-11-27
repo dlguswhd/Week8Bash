@@ -1,36 +1,49 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using System.Collections;
+using UnityEngine.UI;
 
 public class PlayerMovement : MonoBehaviour
 {
-    [Header("ÀÌµ¿ ¼³Á¤")]
+    [Header("ì´ë™ ì„¤ì •")]
     public float movePower = 5f;
     public float jumpPower = 15f;
 
-    [Header("½½¶óÀÌµù ¼³Á¤")]
+    [Header("ìŠ¬ë¼ì´ë”© ì„¤ì •")]
     public float slideSpeed = 12f;
     public float slideDuration = 0.3f;
     public float slideCooldown = 0.5f;
 
-    [Header("°ø°İ ¼³Á¤")]
-    public float attackDelay = 0.4f;      // ÀÏ¹İ °ø°İ µô·¹ÀÌ
-    public float dashAttackDuration = 0.5f; // ´ë½¬ °ø°İ Áö¼Ó ½Ã°£ [NEW]
-    public float dashAttackSpeed = 10f;     // ´ë½¬ °ø°İ ÀÌµ¿ ¼Óµµ [NEW]
+    [Header("ê³µê²© ì„¤ì •")]
+    public float attackDelay = 0.4f;     
+    public float dashAttackDuration = 0.5f; 
+    public float dashAttackSpeed = 10f;     
 
-    [Header("°ø°İ ÆÇÁ¤(Hitbox)")]
-    public Transform attackPos;   // °ø°İ ¹üÀ§ÀÇ Áß½ÉÁ¡ (¿ÀºêÁ§Æ® ¿¬°á ÇÊ¿ä)
-    public Vector2 attackBoxSize; // °ø°İ ¹üÀ§ Å©±â (°¡·Î, ¼¼·Î)
-    public LayerMask enemyLayer;  // ¸ó½ºÅÍ¸¸ ¶§¸®±â À§ÇÑ ·¹ÀÌ¾î ÇÊÅÍ
+    [Header("ê³µê²© íŒì •(Hitbox)")]
+    public Transform attackPos;   
+    public Vector2 attackBoxSize; 
+    public LayerMask enemyLayer;  
     public int damage = 20;
-    public Vector2 normalAttackSize = new Vector2(1f, 1f); // ÀÏ¹İ °ø°İ Å©±â
-    public Vector2 dashAttackSize = new Vector2(2f, 1f);   // ´ë½¬ °ø°İ Å©±â (°¡·Î·Î ´õ ±æ°Ô!)
+    public Vector2 normalAttackSize = new Vector2(1f, 1f); 
+    public Vector2 dashAttackSize = new Vector2(2f, 1f);  
 
-    [Header("»óÅÂ È®ÀÎ")]
+    [Header("ìƒíƒœ í™•ì¸")]
     public bool isJumping = false;
     public bool isSliding = false;
     public bool isAttacking = false;
-    public bool isDashAttacking = false; // [NEW] ´ë½¬ °ø°İ ÁßÀÎÁö
+    public bool isDashAttacking = false; 
     public bool canSlide = true;
+
+    [Header("ì²´ë ¥ ì„¤ì •")]
+    public int maxHp = 100; 
+    public int currentHp;  
+
+    [Header("ëŠ¥ë ¥ì¹˜ (ë‚˜ì¤‘ì— ì•„ì´í…œ ë¨¹ìœ¼ë©´ ì˜¬ë¼ê°)")]
+    public int defense = 0; 
+
+    [Header("UI ì—°ê²°")]
+    public Text hpText;   
+    public Text atkText;  
+    public Text defText;  
 
     Rigidbody2D rigid;
     Animator anim;
@@ -39,47 +52,100 @@ public class PlayerMovement : MonoBehaviour
 
     Vector2 originalSize;
     Vector2 originalOffset;
+    Vector3 defaultScale;
 
-    // ½½¶óÀÌµù ÄÚ·çÆ¾À» Á¦¾îÇÏ±â À§ÇÑ º¯¼ö
     Coroutine currentSlideRoutine;
 
+    int playerLayerNum;
+    int enemyLayerNum;
     void Start()
     {
+        defaultScale = transform.localScale;
         rigid = GetComponent<Rigidbody2D>();
         anim = GetComponent<Animator>();
         spriteRenderer = GetComponent<SpriteRenderer>();
         boxCollider = GetComponent<BoxCollider2D>();
+        playerLayerNum = LayerMask.NameToLayer("Player");
+        enemyLayerNum = LayerMask.NameToLayer("Enemy");
+        currentHp = maxHp;
+        UpdateStatusUI();
+        Physics2D.IgnoreLayerCollision(playerLayerNum, enemyLayerNum, false);
 
         if (boxCollider != null)
         {
             originalSize = boxCollider.size;
             originalOffset = boxCollider.offset;
         }
-
-        // ÃÊ±âÈ­
+        // ì´ˆê¸°í™”
         anim.ResetTrigger("Attack");
         anim.ResetTrigger("DashAttack");
         anim.SetBool("IsJumping", false);
     }
 
+    void UpdateStatusUI()
+    {
+        if (hpText != null) hpText.text = "HP : " + currentHp + " / " + maxHp;
+
+        if (atkText != null) atkText.text = "ATK : " + damage;
+
+        if (defText != null) defText.text = "DEF : " + defense;
+    }
+
+    public void TakeDamage(int dmg)
+    {
+        if (isSliding) return;
+
+        float damageMultiplier = (100f - defense) / 100f;
+        int finalDamage = (int)(dmg * damageMultiplier);
+
+        if (finalDamage < 1) finalDamage = 1;
+
+        currentHp -= finalDamage;
+        Debug.Log("ë°›ì€ ë°ë¯¸ì§€: " + finalDamage + " (ë°©ì–´ë ¥ ì ìš©ë¨)");
+
+        StartCoroutine(OnDamageEffect());
+        UpdateStatusUI(); 
+
+        if (currentHp <= 0)
+        {
+            Die();
+        }
+    }
+
+    public void Heal(int amount)
+    {
+        Debug.Log("â‘£ [Player] í í•¨ìˆ˜ ë„ì°©! í˜„ì¬ ì²´ë ¥: " + currentHp);
+
+        if (currentHp >= maxHp)
+        {
+            Debug.Log("â‘¤ [Player] ì´ë¯¸ í’€í”¼ë¼ì„œ íšŒë³µ ì•ˆ í•¨ (í˜„ì¬: " + currentHp + ")");
+            return;
+        }
+
+        if (currentHp <= 0) return;
+
+        currentHp += amount;
+        if (currentHp > maxHp) currentHp = maxHp;
+
+        Debug.Log("â‘¤ [Player] ì²´ë ¥ ì¦ê°€í•¨! ë³€ê²½ëœ ê°’: " + currentHp);
+
+        UpdateStatusUI();
+    }
+
     void Update()
     {
-        // 1. °ø°İ ÀÔ·Â (ÀÏ¹İ °ø°İ vs ´ë½¬ °ø°İ)
         if (Input.GetMouseButtonDown(0) && !isAttacking && !isDashAttacking)
         {
             if (isSliding)
             {
-                // ½½¶óÀÌµù Áß °ø°İ -> ´ë½¬ °ø°İ ¹ßµ¿!
                 StartCoroutine(DashAttackRoutine());
             }
             else
             {
-                // ±×³É ¼­ ÀÖ°Å³ª °È´Â Áß -> ÀÏ¹İ °ø°İ
                 StartCoroutine(AttackRoutine());
             }
         }
 
-        // 2. Á¡ÇÁ ÀÔ·Â
         if (Input.GetButtonDown("Jump") && !isJumping && !isSliding && !isAttacking && !isDashAttacking)
         {
             isJumping = true;
@@ -87,25 +153,21 @@ public class PlayerMovement : MonoBehaviour
             anim.SetBool("IsJumping", true);
         }
 
-        // 3. ½½¶óÀÌµù ÀÔ·Â
         if (Input.GetKeyDown(KeyCode.LeftShift) && !isSliding && canSlide && !isJumping && !isAttacking && !isDashAttacking)
         {
-            // ÄÚ·çÆ¾À» º¯¼ö¿¡ ´ã¾Æ ½ÇÇà (³ªÁß¿¡ ¸ØÃß±â À§ÇØ)
             currentSlideRoutine = StartCoroutine(SlideRoutine());
         }
     }
 
     void FixedUpdate()
     {
-        // ´ë½¬ °ø°İ ÁßÀÏ ¶§´Â ¾ÕÀ¸·Î ÀüÁø
         if (isDashAttacking)
         {
-            float direction = spriteRenderer.flipX ? -1f : 1f;
+            float direction = transform.localScale.x;
             rigid.linearVelocity = new Vector2(direction * dashAttackSpeed, rigid.linearVelocity.y);
             return;
         }
 
-        // ÀÏ¹İ °ø°İÀÌ³ª ½½¶óÀÌµù ÁßÀÌ¸é Å°º¸µå ÀÌµ¿ Àá±İ
         if (isSliding || isAttacking)
         {
             if (isAttacking && !isJumping)
@@ -115,37 +177,27 @@ public class PlayerMovement : MonoBehaviour
 
         Move();
     }
-
-    // [NEW] ´ë½¬ °ø°İ ÄÚ·çÆ¾
-    // [NEW] ´ë½¬ °ø°İ ÄÚ·çÆ¾
     IEnumerator DashAttackRoutine()
     {
-        // 1. ±âÁ¸ ½½¶óÀÌµù °­Á¦ Á¾·á
         if (currentSlideRoutine != null) StopCoroutine(currentSlideRoutine);
 
         isSliding = false;
         isDashAttacking = true;
 
-        // Äİ¶óÀÌ´õ Å©±â º¹±¸ (½½¶óÀÌµù ¶§ ÀÛ¾ÆÁ³´ø °Í ¿ø»óº¹±¸)
         if (boxCollider != null)
         {
             boxCollider.size = originalSize;
             boxCollider.offset = originalOffset;
         }
 
-        // 2. ´ë½¬ °ø°İ ¾Ö´Ï¸ŞÀÌ¼Ç ½ÇÇà
         anim.SetTrigger("DashAttack");
 
-        // [NEW] ´ë½¬ °ø°İ ÆÇÁ¤ ½ÇÇà (¾à°£ÀÇ µô·¹ÀÌ ÈÄ ¶§¸®°Å³ª Áï½Ã ¶§¸²)
         CheckAttackHit(dashAttackSize, damage);
 
-        // 3. Áö¼Ó ½Ã°£ ´ë±â
         yield return new WaitForSeconds(dashAttackDuration);
 
-        // 4. »óÅÂ ÇØÁ¦
         isDashAttacking = false;
 
-        // [FIX] ¿©±â¼­ ½½¶óÀÌµù ÄğÅ¸ÀÓÀ» Ç®¾îÁà¾ß ´Ù½Ã ½½¶óÀÌµùÀÌ °¡´ÉÇÕ´Ï´Ù!
         canSlide = true;
     }
 
@@ -154,19 +206,15 @@ public class PlayerMovement : MonoBehaviour
         isAttacking = true;
         anim.SetTrigger("Attack");
 
-        // [NEW] °ø°İ ÆÇÁ¤ ½ÇÇà
-        // ¾Ö´Ï¸ŞÀÌ¼Ç ½ÃÀÛÇÏ°í 0.1ÃÊ µÚ¿¡ ¶§¸®´Â °Ô ÀÚ¿¬½º·¯¿ì¸é µô·¹ÀÌ Ãß°¡ °¡´É
-        // yield return new WaitForSeconds(0.1f); 
         CheckAttackHit(normalAttackSize, damage);
 
         yield return new WaitForSeconds(attackDelay);
         isAttacking = false;
     }
 
-    // [NEW] ½ÇÁ¦·Î ÀûÀ» °¨ÁöÇÏ°í ¶§¸®´Â ÇÔ¼ö
+
     void CheckAttackHit(Vector2 boxSize, int atkDamage)
     {
-        // ¹Ş¾Æ¿Â boxSize¸¦ »ç¿ëÇØ ¹üÀ§ Ã¼Å©
         Collider2D[] hitEnemies = Physics2D.OverlapBoxAll(attackPos.position, boxSize, 0, enemyLayer);
 
         foreach (Collider2D enemy in hitEnemies)
@@ -179,14 +227,12 @@ public class PlayerMovement : MonoBehaviour
         }
     }
 
-    // [NEW] °ø°İ ¹üÀ§¸¦ ¿¡µğÅÍ¿¡¼­ ´«À¸·Î º¸±â À§ÇÑ ÇÔ¼ö
     void OnDrawGizmosSelected()
     {
         if (attackPos == null) return;
         Gizmos.color = Color.red;
         Gizmos.DrawWireCube(attackPos.position, normalAttackSize);
 
-        // ÆÄ¶õ»öÀ¸·Î ´ë½¬ °ø°İ ¹üÀ§µµ °°ÀÌ ±×·Áº¸±â (Âü°í¿ë)
         Gizmos.color = Color.blue;
         Gizmos.DrawWireCube(attackPos.position, dashAttackSize);
     }
@@ -199,7 +245,15 @@ public class PlayerMovement : MonoBehaviour
         if (xInput != 0)
         {
             anim.SetBool("IsWalking", true);
-            spriteRenderer.flipX = xInput < 0;
+
+            if (xInput > 0)
+            {
+                transform.localScale = new Vector3(Mathf.Abs(defaultScale.x), defaultScale.y, defaultScale.z);
+            }
+            else
+            {
+                transform.localScale = new Vector3(-Mathf.Abs(defaultScale.x), defaultScale.y, defaultScale.z);
+            }
         }
         else
         {
@@ -212,8 +266,12 @@ public class PlayerMovement : MonoBehaviour
         isSliding = true;
         canSlide = false;
 
-        float direction = spriteRenderer.flipX ? -1f : 1f;
-        if (Input.GetAxisRaw("Horizontal") != 0) direction = Input.GetAxisRaw("Horizontal");
+        Physics2D.IgnoreLayerCollision(playerLayerNum, enemyLayerNum, true);
+
+
+        float direction = transform.localScale.x;
+        if (Input.GetAxisRaw("Horizontal") != 0)
+            direction = Input.GetAxisRaw("Horizontal");
 
         anim.SetTrigger("Slide");
 
@@ -226,6 +284,8 @@ public class PlayerMovement : MonoBehaviour
         rigid.linearVelocity = new Vector2(direction * slideSpeed, rigid.linearVelocity.y);
 
         yield return new WaitForSeconds(slideDuration);
+
+        Physics2D.IgnoreLayerCollision(playerLayerNum, enemyLayerNum, false);
 
         isSliding = false;
         if (boxCollider != null)
@@ -246,4 +306,28 @@ public class PlayerMovement : MonoBehaviour
             anim.SetBool("IsJumping", false);
         }
     }
+
+
+    void Die()
+    {
+        Debug.Log("í”Œë ˆì´ì–´ ì‚¬ë§...");
+        anim.SetTrigger("Die"); 
+        rigid.linearVelocity = Vector2.zero;       
+        rigid.bodyType = RigidbodyType2D.Kinematic; 
+
+        GetComponent<Collider2D>().enabled = false; 
+        this.enabled = false; 
+        rigid.linearVelocity = Vector2.zero;
+        GetComponent<Collider2D>().enabled = false;
+        this.enabled = false; 
+    }
+
+    IEnumerator OnDamageEffect()
+    {
+        spriteRenderer.color = Color.red;
+        yield return new WaitForSeconds(0.1f);
+        spriteRenderer.color = Color.white;
+    }
+
+
 }
