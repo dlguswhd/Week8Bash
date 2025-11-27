@@ -319,7 +319,13 @@ public class PlayerMovement : MonoBehaviour
         this.enabled = false; 
         rigid.linearVelocity = Vector2.zero;
         GetComponent<Collider2D>().enabled = false;
-        this.enabled = false; 
+        this.enabled = false;
+
+        if (GameManager.instance != null)
+        {
+            // Invoke는 "1초 뒤에 함수 실행해줘" 라는 뜻입니다.
+            GameManager.instance.Invoke("OnPlayerDead", 1f);
+        }
     }
 
     IEnumerator OnDamageEffect()

@@ -1,10 +1,14 @@
 using UnityEngine;
 using System.Collections;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
 public class GameManager : MonoBehaviour
 {
     public static GameManager instance;
+
+    [Header("UI 연결")]
+    public GameObject gameOverPanel;
 
     [Header("설정")]
     public Transform[] spawnPoints;
@@ -31,10 +35,29 @@ public class GameManager : MonoBehaviour
         instance = this;
     }
 
+    public void OnPlayerDead()
+    {
+        Debug.Log("게임 오버! 메뉴 띄움");
+
+        if (gameOverPanel != null) gameOverPanel.SetActive(true);
+    }
+
+    public void RetryGame()
+    {
+        Time.timeScale = 1f;
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+    }
+    public void GoToTitle()
+    {
+        // Time.timeScale = 1;
+        SceneManager.LoadScene("TitleScene"); 
+    }
+
     void Start()
     {
         UpdateMoneyUI();
         StartCoroutine(StartNextRound());
+        Time.timeScale = 1f;
     }
 
     public void AddMoney(int amount)
